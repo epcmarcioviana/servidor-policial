@@ -5,51 +5,46 @@ import google.generativeai as genai
 
 app = Flask(__name__)
 
-# Configura a IA usando a chave que vamos cadastrar na nuvem
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+# Puxa a chave de forma segura
+chave_api = os.environ.get("GEMINI_API_KEY", "").strip()
+genai.configure(api_key=chave_api)
 
 @app.route('/')
 def home():
-    return "Servidor Policial Ativo e Operante!", 200
+    return "Servidor Policial Ativo!", 200
 
 @app.route('/processar-pdf', methods=['POST'])
 def processar_pdf():
     try:
-        # 1. Recebe os dados do Google Sheets
         dados_recebidos = request.get_json()
         if not dados_recebidos or 'base64_data' not in dados_recebidos:
-            return jsonify({"erro": "Dados binários do PDF não enviados"}), 400
+            return jsonify({"erro": "Dados binários ausentes"}), 400
         
         base64_pdf = dados_recebidos['base64_data']
         
-        # 2. Configura a estrutura do arquivo para a biblioteca oficial do Google
         documento = {
             "mime_type": "application/pdf",
             "data": base64_pdf
         }
         
-        # 3. Define as instruções de extração estrita
         prompt = (
             "Extraia as informações deste Termo de Apreensão Policial e retorne APENAS "
-            "um objeto JSON válido, sem qualquer marcação markdown (não use aspas triplas ou texto explicativo). "
-            "Campos obrigatórios: bo_sinesp, data_apreensao, tipo_objeto, descricao_detalhada, quantidade, envolvido."
+            "um objeto JSON válido. Campos obrigatórios: bo_sinesp, data_apreensao, "
+            "tipo_objeto, descricao_detalhada, quantidade, envolvido."
         )
         
-        # 4. Chama o modelo oficial usando a biblioteca nativa
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content([prompt, documento])
         
-        # 5. Limpa e valida o texto retornado
         texto_limpo = response.text.strip()
         if texto_limpo.startswith("```"):
             texto_limpo = texto_limpo.replace("```json", "").replace("```", "").strip()
             
-        dados_finais = json.loads(texto_limpo)
-        return jsonify(dados_finais), 200
+        return jsonify(json.loads(texto_limpo)), 200
         
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    # Garante compatibilidade local caso necessário
+    app.run(host='0.0.0.0', port=5000)
